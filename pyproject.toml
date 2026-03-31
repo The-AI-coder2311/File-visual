@@ -1,1 +1,10 @@
+[project]
+name = "vfm"
+version = "1.0.0"
+description = "Visual File Manager CLI"
+dependencies = [
+    "rich",
+]
 
+[project.scripts]
+vfm = "vfm.cli:main"
