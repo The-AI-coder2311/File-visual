@@ -1,96 +1,22 @@
 #!/usr/bin/env python3
 
 import os
-import time
+import sys
 import argparse
 import webbrowser
+
+# GUI
+from PySide6 import QtWidgets, QtGui, QtCore
+
+# Web + Visualization
 from fastapi import FastAPI
 import uvicorn
 import plotly.graph_objects as go
-from rich.live import Live
-from rich.table import Table
-from rich.console import Console
-
-console = Console()
 
 # -----------------------------
-# Tree View
+# Utility
 # -----------------------------
-def print_tree(path, prefix=""):
-    try:
-        items = os.listdir(path)
-    except PermissionError:
-        print(prefix + "[Permission Denied]")
-        return
-
-    for item in items:
-        full = os.path.join(path, item)
-
-        if os.path.isdir(full):
-            print(prefix + "[D] " + item)
-            print_tree(full, prefix + "  ")
-        else:
-            print(prefix + "[F] " + item)
-
-
-# -----------------------------
-# Live Dashboard
-# -----------------------------
-def generate_table():
-    table = Table(title="Live File Dashboard")
-    table.add_column("File")
-    table.add_column("Size")
-
-    for file in os.listdir("."):
-        try:
-            size = os.path.getsize(file) if os.path.isfile(file) else 0
-        except:
-            size = 0
-        table.add_row(file, str(size))
-
-    return table
-
-
-def run_dashboard():
-    with Live(generate_table(), refresh_per_second=2) as live:
-        while True:
-            time.sleep(1)
-            live.update(generate_table())
-
-
-# -----------------------------
-# Keyboard Navigation
-# -----------------------------
-def run_keyboard():
-    files = os.listdir(".")
-    index = 0
-
-    while True:
-        os.system("cls" if os.name == "nt" else "clear")
-
-        for i, f in enumerate(files):
-            if i == index:
-                print("> " + f)
-            else:
-                print("  " + f)
-
-        key = input()
-
-        if key == "q":
-            break
-        elif key == "w":
-            index = max(0, index - 1)
-        elif key == "s":
-            index = min(len(files) - 1, index + 1)
-
-
-# -----------------------------
-# Treemap Web UI
-# -----------------------------
-app = FastAPI()
-
-
-def build_data(path):
+def get_tree_data(path):
     labels = []
     parents = []
     values = []
@@ -113,9 +39,34 @@ def build_data(path):
     return labels, parents, values
 
 
+# -----------------------------
+# CLI Tree View
+# -----------------------------
+def print_tree(path, prefix=""):
+    try:
+        items = os.listdir(path)
+    except PermissionError:
+        print(prefix + "[Permission Denied]")
+        return
+
+    for item in items:
+        full = os.path.join(path, item)
+
+        if os.path.isdir(full):
+            print(prefix + f"[D] {item}")
+            print_tree(full, prefix + "  ")
+        else:
+            print(prefix + f"[F] {item}")
+
+
+# -----------------------------
+# Treemap Web UI
+# -----------------------------
+app = FastAPI()
+
 @app.get("/")
 def treemap():
-    labels, parents, values = build_data(".")
+    labels, parents, values = get_tree_data(".")
 
     fig = go.Figure(go.Treemap(
         labels=labels,
@@ -128,9 +79,56 @@ def treemap():
 
 def run_web():
     port = 8000
-    print(f"Starting web UI at http://localhost:{port}")
     webbrowser.open(f"http://localhost:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+# -----------------------------
+# GUI (Professional Desktop App)
+# -----------------------------
+class FileManager(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("VFM - Visual File Manager")
+        self.setGeometry(200, 100, 1000, 600)
+
+        self.tree = QtWidgets.QTreeWidget()
+        self.tree.setHeaderLabel("Files & Folders")
+
+        self.setCentralWidget(self.tree)
+
+        self.load_tree(self.tree.invisibleRootItem(), ".")
+
+        self.tree.itemDoubleClicked.connect(self.on_click)
+
+    def load_tree(self, parent, path):
+        try:
+            for item in os.listdir(path):
+                full = os.path.join(path, item)
+
+                if os.path.isdir(full):
+                    node = QtWidgets.QTreeWidgetItem(parent, [f"📁 {item}"])
+                    self.load_tree(node, full)
+                else:
+                    size = 0
+                    try:
+                        size = os.path.getsize(full)
+                    except:
+                        pass
+                    QtWidgets.QTreeWidgetItem(parent, [f"📄 {item} ({size} bytes)"])
+        except PermissionError:
+            QtWidgets.QTreeWidgetItem(parent, ["[Permission Denied]"])
+
+    def on_click(self, item, column):
+        print("Clicked:", item.text(0))
+
+
+def run_gui():
+    app = QtWidgets.QApplication(sys.argv)
+    window = FileManager()
+    window.show()
+    sys.exit(app.exec())
 
 
 # -----------------------------
@@ -139,22 +137,22 @@ def run_web():
 def main():
     parser = argparse.ArgumentParser(description="Visual File Manager")
 
-    parser.add_argument("-y", "--yes", action="store_true", help="Auto confirm prompts")
-    parser.add_argument("-tree", action="store_true", help="Show directory tree")
-    parser.add_argument("-dash", action="store_true", help="Run live dashboard")
+    parser.add_argument("-y", "--yes", action="store_true", help="Auto confirm")
+    parser.add_argument("-tree", action="store_true", help="Show tree")
+    parser.add_argument("-gui", action="store_true", help="Open GUI")
     parser.add_argument("-web", action="store_true", help="Open web treemap")
-    parser.add_argument("-kbd", action="store_true", help="Keyboard navigation mode")
 
     args = parser.parse_args()
 
     if args.tree:
         print_tree(".")
-    elif args.dash:
-        run_dashboard()
+
+    elif args.gui:
+        run_gui()
+
     elif args.web:
         run_web()
-    elif args.kbd:
-        run_keyboard()
+
     else:
         print("Use -h for help")
 
