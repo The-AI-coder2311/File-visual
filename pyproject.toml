@@ -1,9 +1,13 @@
 [project]
 name = "vfm"
 version = "1.0.0"
-description = "Visual File Manager CLI"
+description = "Visual File Manager"
 dependencies = [
     "rich",
+    "typer",
+    "fastapi",
+    "uvicorn",
+    "plotly"
 ]
 
 [project.scripts]
