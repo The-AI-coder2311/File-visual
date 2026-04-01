@@ -1,15 +1,24 @@
-import argparse
-from vfm.core import run_app
+import typer
+from vfm.dashboard import start_dashboard
+from vfm.web import start_web
+
+app = typer.Typer()
+
+@app.command()
+def run():
+    start_dashboard()
+
+@app.command()
+def web():
+    start_web()
+
+@app.command()
+def tree():
+    from vfm.tree import print_tree
+    print_tree(".")
 
 def main():
-    parser = argparse.ArgumentParser(description="Visual File Manager")
-
-    parser.add_argument("-y", "--yes", action="store_true", help="Auto confirm prompts")
-    parser.add_argument("-h", "--help", action="help", help="Show help message")
-
-    args = parser.parse_args()
-
-    run_app(args)
+    app()
 
 if __name__ == "__main__":
     main()
